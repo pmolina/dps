@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Immutable references to the USDC and USDT token contracts
@@ -56,17 +56,10 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address _usdcAddress,
         address _usdtAddress,
         address initialOwner
-    ) {
+    ) Ownable(initialOwner) {
         // Initialize USDC and USDT token interfaces
         USDC = IERC20(_usdcAddress);
         USDT = IERC20(_usdtAddress);
-
-        // Set the contract owner
-        // If initialOwner is the zero address, set msg.sender as the owner
-        // Otherwise, set the provided initialOwner as the owner
-        _transferOwnership(
-            initialOwner == address(0) ? msg.sender : initialOwner
-        );
     }
 
     // Function to deposit tokens into the vault
