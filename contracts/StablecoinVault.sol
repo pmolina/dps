@@ -3,8 +3,10 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract StablecoinVault is ReentrancyGuard {
+contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Immutable references to the USDC and USDT token contracts
     IERC20 public immutable USDC;
     IERC20 public immutable USDT;
@@ -23,13 +25,23 @@ contract StablecoinVault is ReentrancyGuard {
     );
 
     // Constructor to set the addresses of USDC and USDT tokens
-    constructor(address _usdcAddress, address _usdtAddress) {
+    constructor(
+        address _usdcAddress,
+        address _usdtAddress,
+        address initialOwner
+    ) {
         USDC = IERC20(_usdcAddress);
         USDT = IERC20(_usdtAddress);
+        _transferOwnership(
+            initialOwner == address(0) ? msg.sender : initialOwner
+        );
     }
 
     // Function to deposit tokens into the vault
-    function deposit(address _token, uint256 _amount) external nonReentrant {
+    function deposit(
+        address _token,
+        uint256 _amount
+    ) external nonReentrant whenNotPaused {
         require(
             _token == address(USDC) || _token == address(USDT),
             "Invalid token"
@@ -45,7 +57,10 @@ contract StablecoinVault is ReentrancyGuard {
     }
 
     // Function to withdraw tokens from the vault
-    function withdraw(address _token, uint256 _amount) external nonReentrant {
+    function withdraw(
+        address _token,
+        uint256 _amount
+    ) external nonReentrant whenNotPaused {
         require(
             _token == address(USDC) || _token == address(USDT),
             "Invalid token"
@@ -70,5 +85,14 @@ contract StablecoinVault is ReentrancyGuard {
         address _token
     ) external view returns (uint256) {
         return balances[_user][_token];
+    }
+
+    // New functions for pausing and unpausing
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
