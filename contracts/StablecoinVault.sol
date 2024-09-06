@@ -24,14 +24,19 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         uint256 amount
     );
 
-    // Constructor to set the addresses of USDC and USDT tokens
+    // Constructor to initialize the contract with token addresses and set the owner
     constructor(
         address _usdcAddress,
         address _usdtAddress,
         address initialOwner
     ) {
+        // Initialize USDC and USDT token interfaces
         USDC = IERC20(_usdcAddress);
         USDT = IERC20(_usdtAddress);
+
+        // Set the contract owner
+        // If initialOwner is the zero address, set msg.sender as the owner
+        // Otherwise, set the provided initialOwner as the owner
         _transferOwnership(
             initialOwner == address(0) ? msg.sender : initialOwner
         );
