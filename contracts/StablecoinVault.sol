@@ -15,6 +15,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // user address => token address => balance
     mapping(address => mapping(address => uint256)) private balances;
 
+    // Mapping to store the last proof of life timestamp for each user
+    mapping(address => uint256) private lastProofOfLife;
+
     // Event emitted when a user deposits tokens
     event Deposit(address indexed user, address indexed token, uint256 amount);
     // Event emitted when a user withdraws tokens
@@ -23,6 +26,8 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address indexed token,
         uint256 amount
     );
+    // New event for proof of life updates
+    event ProofOfLifeUpdated(address indexed user, uint256 timestamp);
 
     // Constructor to initialize the contract with token addresses and set the owner
     constructor(
@@ -58,6 +63,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         // Update user's balance
         balances[msg.sender][_token] += _amount;
 
+        // Update proof of life
+        _updateProofOfLife(msg.sender);
+
         emit Deposit(msg.sender, _token, _amount);
     }
 
@@ -90,6 +98,22 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address _token
     ) external view returns (uint256) {
         return balances[_user][_token];
+    }
+
+    // Function to update proof of life without making a deposit
+    function updateProofOfLife() external whenNotPaused {
+        _updateProofOfLife(msg.sender);
+    }
+
+    // Internal function to update proof of life
+    function _updateProofOfLife(address user) internal {
+        lastProofOfLife[user] = block.timestamp;
+        emit ProofOfLifeUpdated(user, block.timestamp);
+    }
+
+    // Function to get the last proof of life timestamp for a user
+    function getLastProofOfLife(address user) external view returns (uint256) {
+        return lastProofOfLife[user];
     }
 
     // New functions for pausing and unpausing
