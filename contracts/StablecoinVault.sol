@@ -18,6 +18,16 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Mapping to store the last proof of life timestamp for each user
     mapping(address => uint256) private lastProofOfLife;
 
+    // Mapping to store fallback wallets for each user
+    mapping(address => address) public fallbackWallets;
+
+    // Minimum and maximum fallback periods
+    uint256 public constant MIN_FALLBACK_PERIOD = 90 days;
+    uint256 public constant MAX_FALLBACK_PERIOD = 1095 days; // 3 years
+
+    // Variable fallback period, initialized to minimum
+    uint256 public fallbackPeriod = MIN_FALLBACK_PERIOD;
+
     // Event emitted when a user deposits tokens
     event Deposit(address indexed user, address indexed token, uint256 amount);
     // Event emitted when a user withdraws tokens
@@ -28,6 +38,18 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     );
     // New event for proof of life updates
     event ProofOfLifeUpdated(address indexed user, uint256 timestamp);
+    // New events for fallback wallet functionality
+    event FallbackWalletSet(
+        address indexed user,
+        address indexed fallbackWallet
+    );
+    event FallbackWithdrawal(
+        address indexed user,
+        address indexed fallbackWallet,
+        address indexed token,
+        uint256 amount
+    );
+    event FallbackPeriodUpdated(uint256 newPeriod);
 
     // Constructor to initialize the contract with token addresses and set the owner
     constructor(
@@ -74,22 +96,46 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address _token,
         uint256 _amount
     ) external nonReentrant whenNotPaused {
+        _withdraw(msg.sender, _token, _amount);
+        _updateProofOfLife(msg.sender);
+    }
+
+    // New function for fallback wallet to withdraw
+    function fallbackWithdraw(
+        address _user,
+        address _token,
+        uint256 _amount
+    ) external nonReentrant whenNotPaused {
+        require(
+            fallbackWallets[_user] == msg.sender,
+            "Not authorized fallback wallet"
+        );
+        require(
+            block.timestamp > lastProofOfLife[_user] + fallbackPeriod,
+            "Fallback period not elapsed"
+        );
+
+        _withdraw(_user, _token, _amount);
+        emit FallbackWithdrawal(_user, msg.sender, _token, _amount);
+    }
+
+    // Internal withdraw function
+    function _withdraw(
+        address _user,
+        address _token,
+        uint256 _amount
+    ) internal {
         require(
             _token == address(USDC) || _token == address(USDT),
             "Invalid token"
         );
         require(_amount > 0, "Amount must be greater than 0");
-        require(
-            balances[msg.sender][_token] >= _amount,
-            "Insufficient balance"
-        );
+        require(balances[_user][_token] >= _amount, "Insufficient balance");
 
-        // Update user's balance
-        balances[msg.sender][_token] -= _amount;
-        // Transfer tokens from the contract to the user
+        balances[_user][_token] -= _amount;
         IERC20(_token).transfer(msg.sender, _amount);
 
-        emit Withdrawal(msg.sender, _token, _amount);
+        emit Withdrawal(_user, _token, _amount);
     }
 
     // Function to get the balance of a user for a specific token
@@ -114,6 +160,21 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Function to get the last proof of life timestamp for a user
     function getLastProofOfLife(address user) external view returns (uint256) {
         return lastProofOfLife[user];
+    }
+
+    // Function to set or update fallback wallet
+    function setFallbackWallet(address _fallbackWallet) external {
+        require(_fallbackWallet != address(0), "Invalid fallback wallet");
+        fallbackWallets[msg.sender] = _fallbackWallet;
+        emit FallbackWalletSet(msg.sender, _fallbackWallet);
+    }
+
+    // Function to set the fallback period
+    function setFallbackPeriod(uint256 _newPeriod) external onlyOwner {
+        require(_newPeriod >= MIN_FALLBACK_PERIOD, "Period too short");
+        require(_newPeriod <= MAX_FALLBACK_PERIOD, "Period too long");
+        fallbackPeriod = _newPeriod;
+        emit FallbackPeriodUpdated(_newPeriod);
     }
 
     // New functions for pausing and unpausing
