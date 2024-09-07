@@ -9,8 +9,9 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 - **Multi-Stablecoin Support**: Users can deposit USDC, USDT, and DAI into their personal pension vault.
 - **Flexible Withdrawals**: Funds can be withdrawn at any time by the account holder.
 - **Proof of Life**: Regular interactions with the contract serve as proof of life, ensuring the account holder's continued access.
-- **Fallback Wallet**: Users must designate a fallback wallet on their first deposit to access funds in case of prolonged inactivity.
-- **Customizable Fallback Period**: Users set their own fallback period (between 90 days and 3 years) on their first deposit.
+- **Customizable Fallback Wallet**: Users can set and update a fallback wallet to receive funds in case of prolonged inactivity. If not set, the user's own address is used as the fallback.
+- **Customizable Fallback Period**: Users can set their own fallback period (between 90 days and 3 years).
+- **Open Fallback Withdrawal Initiation**: After the fallback period elapses without activity, any wallet can initiate a withdrawal, but funds are sent only to the designated fallback wallet or the user's address if no fallback is set.
 - **Pausable**: The contract can be paused by the owner in case of emergencies.
 
 ## Smart Contract
@@ -37,11 +38,13 @@ A comprehensive test suite is implemented in `test/StablecoinVault.test.js`, cov
 ## Usage
 
 1. Deploy the StablecoinVault contract with addresses for USDC, USDT, and DAI.
-2. Users deposit stablecoins, setting a fallback wallet and period on their first deposit.
-3. Users can withdraw funds at any time when the contract is not paused.
-4. Regular interactions (deposits, withdrawals) automatically update the proof of life.
-5. Users can manually update their proof of life by calling the `updateProofOfLife` function.
-6. If a user is inactive beyond their fallback period, their designated fallback wallet can withdraw funds.
+2. Users set their fallback wallet using the `setFallbackWallet` function.
+3. Users set their fallback period using the `setUserFallbackPeriod` function.
+4. Users can deposit stablecoins using the `deposit` function.
+5. Users can withdraw funds at any time when the contract is not paused.
+6. Regular interactions (deposits, withdrawals) automatically update the proof of life.
+7. Users can manually update their proof of life by calling the `updateProofOfLife` function.
+8. If a user is inactive beyond their fallback period, any wallet can initiate a withdrawal to the designated fallback wallet or the user's address if no fallback is set.
 
 ## Development
 

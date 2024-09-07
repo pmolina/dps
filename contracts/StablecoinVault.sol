@@ -69,9 +69,7 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Function to deposit tokens into the vault
     function deposit(
         address _token,
-        uint256 _amount,
-        address _fallbackWallet,
-        uint256 _fallbackPeriod
+        uint256 _amount
     ) external nonReentrant whenNotPaused {
         require(
             _token == address(USDC) ||
@@ -80,14 +78,6 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
             "Invalid token"
         );
         require(_amount > 0, "Amount must be greater than 0");
-
-        // Set fallback wallet and period if not already set
-        if (fallbackWallets[msg.sender] == address(0)) {
-            _setFallbackWallet(
-                _fallbackWallet == address(0) ? msg.sender : _fallbackWallet
-            );
-            _setUserFallbackPeriod(_fallbackPeriod);
-        }
 
         // Transfer tokens from user to the contract
         IERC20(_token).transferFrom(msg.sender, address(this), _amount);
@@ -100,19 +90,19 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         emit Deposit(msg.sender, _token, _amount);
     }
 
-    // Internal function to set user's fallback period
-    function _setUserFallbackPeriod(uint256 _period) internal {
+    // Sets fallback wallet
+    function setFallbackWallet(address _fallbackWallet) external {
+        require(_fallbackWallet != address(0), "Invalid fallback wallet");
+        fallbackWallets[msg.sender] = _fallbackWallet;
+        emit FallbackWalletSet(msg.sender, _fallbackWallet);
+    }
+
+    // Sets user's fallback period
+    function setUserFallbackPeriod(uint256 _period) external {
         require(_period >= MIN_FALLBACK_PERIOD, "Period too short");
         require(_period <= MAX_FALLBACK_PERIOD, "Period too long");
         userFallbackPeriods[msg.sender] = _period;
         emit UserFallbackPeriodSet(msg.sender, _period);
-    }
-
-    // Internal function to set fallback wallet
-    function _setFallbackWallet(address _fallbackWallet) internal {
-        require(_fallbackWallet != address(0), "Invalid fallback wallet");
-        fallbackWallets[msg.sender] = _fallbackWallet;
-        emit FallbackWalletSet(msg.sender, _fallbackWallet);
     }
 
     // Function to withdraw tokens from the vault
@@ -120,36 +110,43 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address _token,
         uint256 _amount
     ) external nonReentrant whenNotPaused {
-        _withdraw(msg.sender, _token, _amount);
+        require(
+            _token == address(USDC) ||
+                _token == address(USDT) ||
+                _token == address(DAI),
+            "Invalid token"
+        );
+        require(_amount > 0, "Amount must be greater than 0");
+        require(
+            balances[msg.sender][_token] >= _amount,
+            "Insufficient balance"
+        );
+
+        balances[msg.sender][_token] -= _amount;
+        IERC20(_token).transfer(msg.sender, _amount);
+
         _updateProofOfLife(msg.sender);
+
+        emit Withdrawal(msg.sender, _token, _amount);
     }
 
-    // New function for fallback wallet to withdraw
+    // Function for fallback withdrawal
     function fallbackWithdraw(
         address _user,
         address _token,
         uint256 _amount
     ) external nonReentrant whenNotPaused {
         require(
-            fallbackWallets[_user] == msg.sender,
-            "Not authorized fallback wallet"
-        );
-        require(
             block.timestamp >
                 lastProofOfLife[_user] + userFallbackPeriods[_user],
             "Fallback period not elapsed"
         );
 
-        _withdraw(_user, _token, _amount);
-        emit FallbackWithdrawal(_user, msg.sender, _token, _amount);
-    }
+        address fallbackWallet = fallbackWallets[_user];
+        if (fallbackWallet == address(0)) {
+            fallbackWallet = _user; // Use the user's address if no fallback wallet is set
+        }
 
-    // Internal withdraw function
-    function _withdraw(
-        address _user,
-        address _token,
-        uint256 _amount
-    ) internal {
         require(
             _token == address(USDC) ||
                 _token == address(USDT) ||
@@ -160,9 +157,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         require(balances[_user][_token] >= _amount, "Insufficient balance");
 
         balances[_user][_token] -= _amount;
-        IERC20(_token).transfer(msg.sender, _amount);
+        IERC20(_token).transfer(fallbackWallet, _amount);
 
-        emit Withdrawal(_user, _token, _amount);
+        emit FallbackWithdrawal(_user, fallbackWallet, _token, _amount);
     }
 
     // Function to get the balance of a user for a specific token
@@ -187,13 +184,6 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     // Function to get the last proof of life timestamp for a user
     function getLastProofOfLife(address user) external view returns (uint256) {
         return lastProofOfLife[user];
-    }
-
-    // Function to set or update fallback wallet
-    function setFallbackWallet(address _fallbackWallet) external {
-        require(_fallbackWallet != address(0), "Invalid fallback wallet");
-        fallbackWallets[msg.sender] = _fallbackWallet;
-        emit FallbackWalletSet(msg.sender, _fallbackWallet);
     }
 
     // New functions for pausing and unpausing
