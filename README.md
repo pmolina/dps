@@ -6,44 +6,60 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 
 ## Features
 
-- **Stablecoin Deposits**: Users can deposit USDC, USDT, and DAI into their personal pension vault.
+- **Multi-Stablecoin Support**: Users can deposit USDC, USDT, and DAI into their personal pension vault.
 - **Flexible Withdrawals**: Funds can be withdrawn at any time by the account holder.
 - **Proof of Life**: Regular interactions with the contract serve as proof of life, ensuring the account holder's continued access.
-- **Fallback Wallet**: Users can designate a fallback wallet to access funds in case of prolonged inactivity.
-- **Customizable Fallback Period**: Users can set their own fallback period between 90 days and 3 years.
-- **Pausable**: The contract can be paused in case of emergencies.
+- **Fallback Wallet**: Users must designate a fallback wallet on their first deposit to access funds in case of prolonged inactivity.
+- **Customizable Fallback Period**: Users set their own fallback period (between 90 days and 3 years) on their first deposit.
+- **Pausable**: The contract can be paused by the owner in case of emergencies.
 
 ## Smart Contract
 
 The core of the DPS is the `StablecoinVault` smart contract. Key components include:
 
 - Deposit and withdrawal functions for USDC, USDT, and DAI
-- Proof of life mechanism
+- Proof of life mechanism, automatically updating on interactions
 - Fallback wallet system with customizable periods
 - Balance tracking for each user and token
+- Utilizes OpenZeppelin contracts for enhanced security (ReentrancyGuard, Ownable, Pausable)
 
-## Getting Started
+## Testing
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Compile the contract: `npx hardhat compile`
-4. Run tests: `npx hardhat test`
-5. Deploy to a testnet or local network: `npx hardhat run scripts/deploy.js --network <your-network>`
+A comprehensive test suite is implemented in `test/StablecoinVault.test.js`, covering all major functionalities:
+
+- Deployment
+- Deposits and withdrawals
+- Proof of life updates
+- Fallback wallet operations
+- Owner functions (pause/unpause)
+- Uses MockERC20 tokens to simulate stablecoin interactions
 
 ## Usage
 
-- Users deposit stablecoins (USDC, USDT, or DAI) into their vault
-- On first deposit, users must set a fallback wallet and fallback period
-- Regular interactions (deposits, withdrawals, or explicit updates) serve as proof of life
-- Withdraw funds as needed for pension payments
+1. Deploy the StablecoinVault contract with addresses for USDC, USDT, and DAI.
+2. Users deposit stablecoins, setting a fallback wallet and period on their first deposit.
+3. Users can withdraw funds at any time when the contract is not paused.
+4. Regular interactions (deposits, withdrawals) automatically update the proof of life.
+5. Users can manually update their proof of life by calling the `updateProofOfLife` function.
+6. If a user is inactive beyond their fallback period, their designated fallback wallet can withdraw funds.
+
+## Development
+
+This project uses Hardhat for development and testing. To set up the development environment:
+
+1. Install dependencies: `npm install`
+2. Compile contracts: `npx hardhat compile`
+3. Run tests: `npx hardhat test`
+4. Deploy (local network): `npx hardhat run scripts/deploy.js`
 
 ## Security
 
-The contract includes several security measures:
+The contract incorporates several security measures:
 
 - ReentrancyGuard to prevent reentrancy attacks
-- Ownable for access control
+- Ownable for access control of critical functions
 - Pausable for emergency stops
+- Utilizes OpenZeppelin's secure, audited contract implementations
 
 ## Disclaimer
 
