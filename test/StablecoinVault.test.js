@@ -81,7 +81,74 @@ describe("StablecoinVault", function () {
   });
 
   describe("Deposits", function () {
-    // Tests for deposits will go here
+    it("Should allow deposits of USDC", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD))
+        .to.emit(stablecoinVault, "Deposit")
+        .withArgs(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+
+      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(DEPOSIT_AMOUNT);
+    });
+
+    it("Should allow deposits of USDT", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await USDT.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD))
+        .to.emit(stablecoinVault, "Deposit")
+        .withArgs(user1.address, await USDT.getAddress(), DEPOSIT_AMOUNT);
+
+      expect(await stablecoinVault.getBalance(user1.address, await USDT.getAddress())).to.equal(DEPOSIT_AMOUNT);
+    });
+
+    it("Should allow deposits of DAI", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await DAI.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD))
+        .to.emit(stablecoinVault, "Deposit")
+        .withArgs(user1.address, await DAI.getAddress(), DEPOSIT_AMOUNT);
+
+      expect(await stablecoinVault.getBalance(user1.address, await DAI.getAddress())).to.equal(DEPOSIT_AMOUNT);
+    });
+
+    it("Should reject deposits of invalid tokens", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(ethers.ZeroAddress, DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD))
+        .to.be.revertedWith("Invalid token");
+    });
+
+    it("Should reject deposits of zero amount", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), 0, fallbackWallet.address, MIN_FALLBACK_PERIOD))
+        .to.be.revertedWith("Amount must be greater than 0");
+    });
+
+    it("Should set fallback wallet on first deposit", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      expect(await stablecoinVault.fallbackWallets(user1.address)).to.equal(fallbackWallet.address);
+    });
+
+    it("Should set user fallback period on first deposit", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      expect(await stablecoinVault.userFallbackPeriods(user1.address)).to.equal(MIN_FALLBACK_PERIOD);
+    });
+
+    it("Should reject fallback period shorter than minimum", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD - 1))
+        .to.be.revertedWith("Period too short");
+    });
+
+    it("Should reject fallback period longer than maximum", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MAX_FALLBACK_PERIOD + 1))
+        .to.be.revertedWith("Period too long");
+    });
+
+    it("Should update proof of life on deposit", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
+      expect(lastProofOfLife).to.be.closeTo(
+        (await ethers.provider.getBlock("latest")).timestamp,
+        5
+      );
+    });
+
+    it("Should allow multiple deposits for the same user and token", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT);
+    });
   });
 
   describe("Withdrawals", function () {
