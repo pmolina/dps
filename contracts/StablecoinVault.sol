@@ -25,9 +25,6 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     uint256 public constant MIN_FALLBACK_PERIOD = 90 days;
     uint256 public constant MAX_FALLBACK_PERIOD = 1095 days; // 3 years
 
-    // Variable fallback period, initialized to minimum
-    uint256 public fallbackPeriod = MIN_FALLBACK_PERIOD;
-
     // Mapping to store individual fallback periods for each user
     mapping(address => uint256) public userFallbackPeriods;
 
@@ -52,7 +49,6 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         address indexed token,
         uint256 amount
     );
-    event FallbackPeriodUpdated(uint256 newPeriod);
     // New event for setting individual fallback period
     event UserFallbackPeriodSet(address indexed user, uint256 period);
 
@@ -191,14 +187,6 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         require(_fallbackWallet != address(0), "Invalid fallback wallet");
         fallbackWallets[msg.sender] = _fallbackWallet;
         emit FallbackWalletSet(msg.sender, _fallbackWallet);
-    }
-
-    // Function to set the fallback period
-    function setFallbackPeriod(uint256 _newPeriod) external onlyOwner {
-        require(_newPeriod >= MIN_FALLBACK_PERIOD, "Period too short");
-        require(_newPeriod <= MAX_FALLBACK_PERIOD, "Period too long");
-        fallbackPeriod = _newPeriod;
-        emit FallbackPeriodUpdated(_newPeriod);
     }
 
     // New functions for pausing and unpausing
