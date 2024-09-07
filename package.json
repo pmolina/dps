@@ -3,7 +3,10 @@
     "@openzeppelin/contracts": "^5.0.2"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.2.1",
+    "ethers": "^6.13.2",
     "hardhat": "^2.22.10"
   }
 }
