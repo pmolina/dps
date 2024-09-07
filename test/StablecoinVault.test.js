@@ -152,15 +152,127 @@ describe("StablecoinVault", function () {
   });
 
   describe("Withdrawals", function () {
-    // Tests for withdrawals will go here
+    beforeEach(async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+    });
+
+    it("Should allow withdrawals", async function () {
+      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT))
+        .to.emit(stablecoinVault, "Withdrawal")
+        .withArgs(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+
+      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(0);
+    });
+
+    it("Should reject withdrawals exceeding balance", async function () {
+      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT+DEPOSIT_AMOUNT))
+        .to.be.revertedWith("Insufficient balance");
+    });
+
+    it("Should reject withdrawals of invalid tokens", async function () {
+      await expect(stablecoinVault.connect(user1).withdraw(ethers.ZeroAddress, DEPOSIT_AMOUNT))
+        .to.be.revertedWith("Invalid token");
+    });
+
+    it("Should reject withdrawals of zero amount", async function () {
+      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), 0))
+        .to.be.revertedWith("Amount must be greater than 0");
+    });
+
+    it("Should update proof of life on withdrawal", async function () {
+      await stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
+      expect(lastProofOfLife).to.be.closeTo(
+        (await ethers.provider.getBlock("latest")).timestamp,
+        5
+      );
+    });
   });
 
   describe("Proof of Life", function () {
-    // Tests for proof of life functionality will go here
+    it("Should allow manual proof of life update", async function () {
+        const tx = await stablecoinVault.connect(user1).updateProofOfLife();
+        const receipt = await tx.wait();
+        const block = await ethers.provider.getBlock(receipt.blockNumber);
+        
+        await expect(tx)
+          .to.emit(stablecoinVault, "ProofOfLifeUpdated")
+          .withArgs(user1.address, (timestamp) => {
+            expect(timestamp).to.be.closeTo(block.timestamp, 2); // Improve
+            return true;
+          });
+      });
+
+    it("Should update proof of life on deposit", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
+      expect(lastProofOfLife).to.be.closeTo(
+        (await ethers.provider.getBlock("latest")).timestamp,
+        5
+      );
+    });
+
+    it("Should update proof of life on withdrawal", async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+      await stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
+      expect(lastProofOfLife).to.be.closeTo(
+        (await ethers.provider.getBlock("latest")).timestamp,
+        5
+      );
+    });
   });
 
   describe("Fallback Wallet", function () {
-    // Tests for fallback wallet functionality will go here
+    beforeEach(async function () {
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+    });
+
+    it("Should set fallback wallet", async function () {
+      expect(await stablecoinVault.fallbackWallets(user1.address)).to.equal(fallbackWallet.address);
+    });
+
+    it("Should allow changing fallback wallet", async function () {
+      await expect(stablecoinVault.connect(user1).setFallbackWallet(user2.address))
+        .to.emit(stablecoinVault, "FallbackWalletSet")
+        .withArgs(user1.address, user2.address);
+
+      expect(await stablecoinVault.fallbackWallets(user1.address)).to.equal(user2.address);
+    });
+
+    it("Should not allow fallback withdrawal before period", async function () {
+      await expect(stablecoinVault.connect(fallbackWallet).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+        .to.be.revertedWith("Fallback period not elapsed");
+    });
+
+    it("Should allow fallback withdrawal after period", async function () {
+      await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD]);
+      await ethers.provider.send("evm_mine");
+
+      await expect(stablecoinVault.connect(fallbackWallet).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+        .to.emit(stablecoinVault, "FallbackWithdrawal")
+        .withArgs(user1.address, fallbackWallet.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+
+      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(0);
+    });
+
+    it("Should not allow non-fallback wallet to withdraw", async function () {
+      await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD]);
+      await ethers.provider.send("evm_mine");
+
+      await expect(stablecoinVault.connect(user2).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+        .to.be.revertedWith("Not authorized fallback wallet");
+    });
+
+    it("Should reset fallback period on new deposit", async function () {
+      await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD - 24 * 60 * 60]);
+      await ethers.provider.send("evm_mine");
+
+      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT, fallbackWallet.address, MIN_FALLBACK_PERIOD);
+
+      await expect(stablecoinVault.connect(fallbackWallet).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+        .to.be.revertedWith("Fallback period not elapsed");
+    });
   });
 
   describe("Owner functions", function () {
