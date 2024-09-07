@@ -39,7 +39,45 @@ describe("StablecoinVault", function () {
   });
 
   describe("Deployment", function () {
-    // Tests for deployment will go here
+    it("Should set the right owner", async function () {
+      expect(await stablecoinVault.owner()).to.equal(owner.address);
+    });
+
+    it("Should set the correct token addresses", async function () {
+      expect(await stablecoinVault.USDC()).to.equal(await USDC.getAddress());
+      expect(await stablecoinVault.USDT()).to.equal(await USDT.getAddress());
+      expect(await stablecoinVault.DAI()).to.equal(await DAI.getAddress());
+    });
+
+    it("Should initialize with correct fallback period constants", async function () {
+      const minFallbackPeriod = await stablecoinVault.MIN_FALLBACK_PERIOD();
+      const maxFallbackPeriod = await stablecoinVault.MAX_FALLBACK_PERIOD();
+      
+      expect(minFallbackPeriod).to.equal(90 * 24 * 60 * 60); // 90 days in seconds
+      expect(maxFallbackPeriod).to.equal(1095 * 24 * 60 * 60); // 3 years in seconds
+    });
+
+    it("Should not be paused initially", async function () {
+      expect(await stablecoinVault.paused()).to.be.false;
+    });
+
+    it("Should have zero balance for all tokens initially", async function () {
+      const tokens = [USDC, USDT, DAI];
+      for (const token of tokens) {
+        const balance = await stablecoinVault.getBalance(user1.address, await token.getAddress());
+        expect(balance).to.equal(0);
+      }
+    });
+
+    it("Should not have any fallback wallets set initially", async function () {
+      const fallbackWallet = await stablecoinVault.fallbackWallets(user1.address);
+      expect(fallbackWallet).to.equal(ethers.ZeroAddress);
+    });
+
+    it("Should not have any user fallback periods set initially", async function () {
+      const userFallbackPeriod = await stablecoinVault.userFallbackPeriods(user1.address);
+      expect(userFallbackPeriod).to.equal(0);
+    });
   });
 
   describe("Deposits", function () {
