@@ -7,9 +7,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
-    // Immutable references to the USDC and USDT token contracts
+    // Immutable references to the USDC, USDT, and DAI token contracts
     IERC20 public immutable USDC;
     IERC20 public immutable USDT;
+    IERC20 public immutable DAI;
 
     // Nested mapping to store user balances for each token
     // user address => token address => balance
@@ -56,11 +57,13 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     constructor(
         address _usdcAddress,
         address _usdtAddress,
+        address _daiAddress,
         address initialOwner
     ) Ownable(initialOwner) {
         // Initialize USDC and USDT token interfaces
         USDC = IERC20(_usdcAddress);
         USDT = IERC20(_usdtAddress);
+        DAI = IERC20(_daiAddress);
     }
 
     // Function to deposit tokens into the vault
@@ -71,7 +74,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         uint256 _fallbackPeriod
     ) external nonReentrant whenNotPaused {
         require(
-            _token == address(USDC) || _token == address(USDT),
+            _token == address(USDC) ||
+                _token == address(USDT) ||
+                _token == address(DAI),
             "Invalid token"
         );
         require(_amount > 0, "Amount must be greater than 0");
@@ -146,7 +151,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
         uint256 _amount
     ) internal {
         require(
-            _token == address(USDC) || _token == address(USDT),
+            _token == address(USDC) ||
+                _token == address(USDT) ||
+                _token == address(DAI),
             "Invalid token"
         );
         require(_amount > 0, "Amount must be greater than 0");

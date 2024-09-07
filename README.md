@@ -6,20 +6,20 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 
 ## Features
 
-- **Stablecoin Deposits**: Users can deposit USDC and USDT into their personal pension vault.
+- **Stablecoin Deposits**: Users can deposit USDC, USDT, and DAI into their personal pension vault.
 - **Flexible Withdrawals**: Funds can be withdrawn at any time by the account holder.
 - **Proof of Life**: Regular interactions with the contract serve as proof of life, ensuring the account holder's continued access.
 - **Fallback Wallet**: Users can designate a fallback wallet to access funds in case of prolonged inactivity.
-- **Customizable Fallback Period**: The contract owner can set a fallback period between 90 days and 3 years.
+- **Customizable Fallback Period**: Users can set their own fallback period between 90 days and 3 years.
 - **Pausable**: The contract can be paused in case of emergencies.
 
 ## Smart Contract
 
 The core of the DPS is the `StablecoinVault` smart contract. Key components include:
 
-- Deposit and withdrawal functions
+- Deposit and withdrawal functions for USDC, USDT, and DAI
 - Proof of life mechanism
-- Fallback wallet system
+- Fallback wallet system with customizable periods
 - Balance tracking for each user and token
 
 ## Getting Started
@@ -32,9 +32,9 @@ The core of the DPS is the `StablecoinVault` smart contract. Key components incl
 
 ## Usage
 
-- Users deposit stablecoins into their vault
+- Users deposit stablecoins (USDC, USDT, or DAI) into their vault
+- On first deposit, users must set a fallback wallet and fallback period
 - Regular interactions (deposits, withdrawals, or explicit updates) serve as proof of life
-- Set a fallback wallet for emergency access
 - Withdraw funds as needed for pension payments
 
 ## Security
@@ -52,3 +52,7 @@ This is a proof of concept and not intended for production use without further d
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request with your improvements.
+
+## License
+
+The license for this project is currently undefined and under consideration. Please check back later for updates on the licensing terms.
