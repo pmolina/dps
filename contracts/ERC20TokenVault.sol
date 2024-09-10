@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
+contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
     // Immutable reference to the ERC20 token contract
     IERC20 public immutable token;
 

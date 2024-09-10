@@ -16,7 +16,7 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 
 ## Smart Contract
 
-The core of the DPS is the `StablecoinVault` smart contract. Key components include:
+The core of the DPS is the `ERC20TokenVault` smart contract. Key components include:
 
 - Deposit and withdrawal functions for the specified ERC20 token
 - Proof of life mechanism, automatically updating on interactions
@@ -30,7 +30,7 @@ To support multiple ERC20 tokens, the contract should be deployed separately for
 
 ## Testing
 
-A comprehensive test suite is implemented in `test/StablecoinVault.test.js`, covering all major functionalities:
+A comprehensive test suite is implemented in `test/ERC20TokenVault.test.js`, covering all major functionalities:
 
 - Deployment
 - Deposits and withdrawals
@@ -41,7 +41,7 @@ A comprehensive test suite is implemented in `test/StablecoinVault.test.js`, cov
 
 ## Usage
 
-1. Deploy the StablecoinVault contract with the address of the desired ERC20 token.
+1. Deploy the ERC20TokenVault contract with the address of the desired ERC20 token.
 2. Users set their fallback wallet using the `setFallbackWallet` function.
 3. Users set their fallback period using the `setUserFallbackPeriod` function.
 4. Users can deposit tokens using the `deposit` function.
