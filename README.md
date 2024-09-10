@@ -2,11 +2,11 @@
 
 ## Overview
 
-The Decentralized Pension System (DPS) is a proof-of-concept smart contract implementation that allows users to create and manage their own pension funds using stablecoins. This system leverages blockchain technology to provide a transparent, secure, and self-managed pension solution.
+The Decentralized Pension System (DPS) is a proof-of-concept smart contract implementation that allows users to create and manage their own pension funds using any ERC20 token. This system leverages blockchain technology to provide a transparent, secure, and self-managed pension solution.
 
 ## Features
 
-- **Multi-Stablecoin Support**: Users can deposit USDC, USDT, and DAI into their personal pension vault.
+- **ERC20 Token Support**: The contract can be deployed for any ERC20 token, allowing for multiple markets.
 - **Flexible Withdrawals**: Funds can be withdrawn at any time by the account holder.
 - **Proof of Life**: Regular interactions with the contract serve as proof of life, ensuring the account holder's continued access.
 - **Customizable Fallback Wallet**: Users can set and update a fallback wallet to receive funds in case of prolonged inactivity. If not set, the user's own address is used as the fallback.
@@ -18,11 +18,15 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 
 The core of the DPS is the `StablecoinVault` smart contract. Key components include:
 
-- Deposit and withdrawal functions for USDC, USDT, and DAI
+- Deposit and withdrawal functions for the specified ERC20 token
 - Proof of life mechanism, automatically updating on interactions
 - Fallback wallet system with customizable periods
-- Balance tracking for each user and token
+- Balance tracking for each user
 - Utilizes OpenZeppelin contracts for enhanced security (ReentrancyGuard, Ownable, Pausable)
+
+## Multiple Markets
+
+To support multiple ERC20 tokens, the contract should be deployed separately for each token. This allows for independent markets for different tokens, each with its own set of users, balances, and configurations.
 
 ## Testing
 
@@ -33,14 +37,14 @@ A comprehensive test suite is implemented in `test/StablecoinVault.test.js`, cov
 - Proof of life updates
 - Fallback wallet operations
 - Owner functions (pause/unpause)
-- Uses MockERC20 tokens to simulate stablecoin interactions
+- Uses MockERC20 tokens to simulate ERC20 token interactions
 
 ## Usage
 
-1. Deploy the StablecoinVault contract with addresses for USDC, USDT, and DAI.
+1. Deploy the StablecoinVault contract with the address of the desired ERC20 token.
 2. Users set their fallback wallet using the `setFallbackWallet` function.
 3. Users set their fallback period using the `setUserFallbackPeriod` function.
-4. Users can deposit stablecoins using the `deposit` function.
+4. Users can deposit tokens using the `deposit` function.
 5. Users can withdraw funds at any time when the contract is not paused.
 6. Regular interactions (deposits, withdrawals) automatically update the proof of life.
 7. Users can manually update their proof of life by calling the `updateProofOfLife` function.

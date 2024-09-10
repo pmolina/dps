@@ -7,14 +7,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
-    // Immutable references to the USDC, USDT, and DAI token contracts
-    IERC20 public immutable USDC;
-    IERC20 public immutable USDT;
-    IERC20 public immutable DAI;
+    // Immutable reference to the ERC20 token contract
+    IERC20 public immutable token;
 
-    // Nested mapping to store user balances for each token
-    // user address => token address => balance
-    mapping(address => mapping(address => uint256)) private balances;
+    // Mapping to store user balances
+    mapping(address => uint256) private balances;
 
     // Mapping to store the last proof of life timestamp for each user
     mapping(address => uint256) private lastProofOfLife;
@@ -30,13 +27,9 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     mapping(address => uint256) public userFallbackPeriods;
 
     // Event emitted when a user deposits tokens
-    event Deposit(address indexed user, address indexed token, uint256 amount);
+    event Deposit(address indexed user, uint256 amount);
     // Event emitted when a user withdraws tokens
-    event Withdrawal(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
+    event Withdrawal(address indexed user, uint256 amount);
     // New event for proof of life updates
     event ProofOfLifeUpdated(address indexed user, uint256 timestamp);
     // New events for fallback wallet functionality
@@ -47,47 +40,33 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     event FallbackWithdrawal(
         address indexed user,
         address indexed fallbackWallet,
-        address indexed token,
         uint256 amount
     );
     // New event for setting individual fallback period
     event UserFallbackPeriodSet(address indexed user, uint256 period);
 
-    // Constructor to initialize the contract with token addresses and set the owner
+    // Constructor to initialize the contract with token address and set the owner
     constructor(
-        address _usdcAddress,
-        address _usdtAddress,
-        address _daiAddress,
+        address _tokenAddress,
         address initialOwner
     ) Ownable(initialOwner) {
-        // Initialize USDC and USDT token interfaces
-        USDC = IERC20(_usdcAddress);
-        USDT = IERC20(_usdtAddress);
-        DAI = IERC20(_daiAddress);
+        // Initialize ERC20 token interface
+        token = IERC20(_tokenAddress);
     }
 
     // Function to deposit tokens into the vault
-    function deposit(
-        address _token,
-        uint256 _amount
-    ) external nonReentrant whenNotPaused {
-        require(
-            _token == address(USDC) ||
-                _token == address(USDT) ||
-                _token == address(DAI),
-            "Invalid token"
-        );
+    function deposit(uint256 _amount) external nonReentrant whenNotPaused {
         require(_amount > 0, "Amount must be greater than 0");
 
         // Transfer tokens from user to the contract
-        IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+        token.transferFrom(msg.sender, address(this), _amount);
         // Update user's balance
-        balances[msg.sender][_token] += _amount;
+        balances[msg.sender] += _amount;
 
         // Update proof of life
         _updateProofOfLife(msg.sender);
 
-        emit Deposit(msg.sender, _token, _amount);
+        emit Deposit(msg.sender, _amount);
     }
 
     // Sets fallback wallet
@@ -106,34 +85,21 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
     }
 
     // Function to withdraw tokens from the vault
-    function withdraw(
-        address _token,
-        uint256 _amount
-    ) external nonReentrant whenNotPaused {
-        require(
-            _token == address(USDC) ||
-                _token == address(USDT) ||
-                _token == address(DAI),
-            "Invalid token"
-        );
+    function withdraw(uint256 _amount) external nonReentrant whenNotPaused {
         require(_amount > 0, "Amount must be greater than 0");
-        require(
-            balances[msg.sender][_token] >= _amount,
-            "Insufficient balance"
-        );
+        require(balances[msg.sender] >= _amount, "Insufficient balance");
 
-        balances[msg.sender][_token] -= _amount;
-        IERC20(_token).transfer(msg.sender, _amount);
+        balances[msg.sender] -= _amount;
+        token.transfer(msg.sender, _amount);
 
         _updateProofOfLife(msg.sender);
 
-        emit Withdrawal(msg.sender, _token, _amount);
+        emit Withdrawal(msg.sender, _amount);
     }
 
     // Function for fallback withdrawal
     function fallbackWithdraw(
         address _user,
-        address _token,
         uint256 _amount
     ) external nonReentrant whenNotPaused {
         require(
@@ -147,27 +113,18 @@ contract StablecoinVault is ReentrancyGuard, Ownable, Pausable {
             fallbackWallet = _user; // Use the user's address if no fallback wallet is set
         }
 
-        require(
-            _token == address(USDC) ||
-                _token == address(USDT) ||
-                _token == address(DAI),
-            "Invalid token"
-        );
         require(_amount > 0, "Amount must be greater than 0");
-        require(balances[_user][_token] >= _amount, "Insufficient balance");
+        require(balances[_user] >= _amount, "Insufficient balance");
 
-        balances[_user][_token] -= _amount;
-        IERC20(_token).transfer(fallbackWallet, _amount);
+        balances[_user] -= _amount;
+        token.transfer(fallbackWallet, _amount);
 
-        emit FallbackWithdrawal(_user, fallbackWallet, _token, _amount);
+        emit FallbackWithdrawal(_user, fallbackWallet, _amount);
     }
 
-    // Function to get the balance of a user for a specific token
-    function getBalance(
-        address _user,
-        address _token
-    ) external view returns (uint256) {
-        return balances[_user][_token];
+    // Function to get the balance of a user
+    function getBalance(address _user) external view returns (uint256) {
+        return balances[_user];
     }
 
     // Function to update proof of life without making a deposit

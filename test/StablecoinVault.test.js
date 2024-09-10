@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 
 describe("StablecoinVault", function () {
   let StablecoinVault, stablecoinVault, owner, user1, user2, fallbackWallet;
-  let USDC, USDT, DAI;
+  let ERC20Token;
 
   const INITIAL_SUPPLY = ethers.parseUnits("1000000", 18); // 1 million tokens
   const DEPOSIT_AMOUNT = ethers.parseUnits("1000", 18); // 1000 tokens
@@ -13,29 +13,21 @@ describe("StablecoinVault", function () {
   beforeEach(async function () {
     [owner, user1, user2, fallbackWallet] = await ethers.getSigners();
 
-    // Deploy mock USDC, USDT, and DAI
+    // Deploy mock ERC20 token
     const MockToken = await ethers.getContractFactory("MockERC20");
-    USDC = await MockToken.deploy("USD Coin", "USDC", 6);
-    USDT = await MockToken.deploy("Tether", "USDT", 6);
-    DAI = await MockToken.deploy("Dai Stablecoin", "DAI", 18);
+    ERC20Token = await MockToken.deploy("Test Token", "TEST", 18);
 
-    await USDC.mint(user1.address, INITIAL_SUPPLY);
-    await USDT.mint(user1.address, INITIAL_SUPPLY);
-    await DAI.mint(user1.address, INITIAL_SUPPLY);
+    await ERC20Token.mint(user1.address, INITIAL_SUPPLY);
 
     // Deploy StablecoinVault
     StablecoinVault = await ethers.getContractFactory("StablecoinVault");
     stablecoinVault = await StablecoinVault.deploy(
-      await USDC.getAddress(),
-      await USDT.getAddress(),
-      await DAI.getAddress(),
+      await ERC20Token.getAddress(),
       owner.address
     );
 
     // Approve StablecoinVault to spend tokens
-    await USDC.connect(user1).approve(await stablecoinVault.getAddress(), INITIAL_SUPPLY);
-    await USDT.connect(user1).approve(await stablecoinVault.getAddress(), INITIAL_SUPPLY);
-    await DAI.connect(user1).approve(await stablecoinVault.getAddress(), INITIAL_SUPPLY);
+    await ERC20Token.connect(user1).approve(await stablecoinVault.getAddress(), INITIAL_SUPPLY);
   });
 
   describe("Deployment", function () {
@@ -43,10 +35,8 @@ describe("StablecoinVault", function () {
       expect(await stablecoinVault.owner()).to.equal(owner.address);
     });
 
-    it("Should set the correct token addresses", async function () {
-      expect(await stablecoinVault.USDC()).to.equal(await USDC.getAddress());
-      expect(await stablecoinVault.USDT()).to.equal(await USDT.getAddress());
-      expect(await stablecoinVault.DAI()).to.equal(await DAI.getAddress());
+    it("Should set the correct token address", async function () {
+      expect(await stablecoinVault.token()).to.equal(await ERC20Token.getAddress());
     });
 
     it("Should initialize with correct fallback period constants", async function () {
@@ -61,12 +51,9 @@ describe("StablecoinVault", function () {
       expect(await stablecoinVault.paused()).to.be.false;
     });
 
-    it("Should have zero balance for all tokens initially", async function () {
-      const tokens = [USDC, USDT, DAI];
-      for (const token of tokens) {
-        const balance = await stablecoinVault.getBalance(user1.address, await token.getAddress());
-        expect(balance).to.equal(0);
-      }
+    it("Should have zero balance for ERC20 tokens initially", async function () {
+      const balance = await stablecoinVault.getBalance(user1.address);
+      expect(balance).to.equal(0);
     });
 
     it("Should not have any fallback wallets set initially", async function () {
@@ -81,42 +68,21 @@ describe("StablecoinVault", function () {
   });
 
   describe("Deposits", function () {
-    it("Should allow deposits of USDC", async function () {
-      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT))
+    it("Should allow deposits of ERC20 tokens", async function () {
+      await expect(stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT))
         .to.emit(stablecoinVault, "Deposit")
-        .withArgs(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+        .withArgs(user1.address, DEPOSIT_AMOUNT);
 
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(DEPOSIT_AMOUNT);
-    });
-
-    it("Should allow deposits of USDT", async function () {
-      await expect(stablecoinVault.connect(user1).deposit(await USDT.getAddress(), DEPOSIT_AMOUNT))
-        .to.emit(stablecoinVault, "Deposit")
-        .withArgs(user1.address, await USDT.getAddress(), DEPOSIT_AMOUNT);
-
-      expect(await stablecoinVault.getBalance(user1.address, await USDT.getAddress())).to.equal(DEPOSIT_AMOUNT);
-    });
-
-    it("Should allow deposits of DAI", async function () {
-      await expect(stablecoinVault.connect(user1).deposit(await DAI.getAddress(), DEPOSIT_AMOUNT))
-        .to.emit(stablecoinVault, "Deposit")
-        .withArgs(user1.address, await DAI.getAddress(), DEPOSIT_AMOUNT);
-
-      expect(await stablecoinVault.getBalance(user1.address, await DAI.getAddress())).to.equal(DEPOSIT_AMOUNT);
-    });
-
-    it("Should reject deposits of invalid tokens", async function () {
-      await expect(stablecoinVault.connect(user1).deposit(ethers.ZeroAddress, DEPOSIT_AMOUNT))
-        .to.be.revertedWith("Invalid token");
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT);
     });
 
     it("Should reject deposits of zero amount", async function () {
-      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), 0))
+      await expect(stablecoinVault.connect(user1).deposit(0))
         .to.be.revertedWith("Amount must be greater than 0");
     });
 
     it("Should update proof of life on deposit", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
@@ -125,42 +91,37 @@ describe("StablecoinVault", function () {
     });
 
     it("Should allow multiple deposits for the same user and token", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT);
     });
   });
 
   describe("Withdrawals", function () {
     beforeEach(async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
     });
 
     it("Should allow withdrawals", async function () {
-      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user1).withdraw(DEPOSIT_AMOUNT))
         .to.emit(stablecoinVault, "Withdrawal")
-        .withArgs(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+        .withArgs(user1.address, DEPOSIT_AMOUNT);
 
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(0);
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(0);
     });
 
     it("Should reject withdrawals exceeding balance", async function () {
-      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT+DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user1).withdraw(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT))
         .to.be.revertedWith("Insufficient balance");
     });
 
-    it("Should reject withdrawals of invalid tokens", async function () {
-      await expect(stablecoinVault.connect(user1).withdraw(ethers.ZeroAddress, DEPOSIT_AMOUNT))
-        .to.be.revertedWith("Invalid token");
-    });
-
     it("Should reject withdrawals of zero amount", async function () {
-      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), 0))
+      await expect(stablecoinVault.connect(user1).withdraw(0))
         .to.be.revertedWith("Amount must be greater than 0");
     });
 
     it("Should update proof of life on withdrawal", async function () {
-      await stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).withdraw(DEPOSIT_AMOUNT);
       const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
@@ -184,7 +145,7 @@ describe("StablecoinVault", function () {
       });
 
     it("Should update proof of life on deposit", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
@@ -193,8 +154,8 @@ describe("StablecoinVault", function () {
     });
 
     it("Should update proof of life on withdrawal", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
-      await stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).withdraw(DEPOSIT_AMOUNT);
       const lastProofOfLife = await stablecoinVault.getLastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
@@ -231,53 +192,53 @@ describe("StablecoinVault", function () {
     });
 
     it("Should allow any wallet to initiate fallback withdrawal, but send funds to fallback wallet", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await stablecoinVault.connect(user1).setFallbackWallet(fallbackWallet.address);
       await stablecoinVault.connect(user1).setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
       await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD]);
       await ethers.provider.send("evm_mine");
 
-      const fallbackWalletInitialBalance = await USDC.balanceOf(fallbackWallet.address);
+      const fallbackWalletInitialBalance = await ERC20Token.balanceOf(fallbackWallet.address);
 
-      await expect(stablecoinVault.connect(user2).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user2).fallbackWithdraw(user1.address, DEPOSIT_AMOUNT))
         .to.emit(stablecoinVault, "FallbackWithdrawal")
-        .withArgs(user1.address, fallbackWallet.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+        .withArgs(user1.address, fallbackWallet.address, DEPOSIT_AMOUNT);
 
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(0);
-      expect(await USDC.balanceOf(fallbackWallet.address)).to.equal(fallbackWalletInitialBalance + DEPOSIT_AMOUNT);
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(0);
+      expect(await ERC20Token.balanceOf(fallbackWallet.address)).to.equal(fallbackWalletInitialBalance + DEPOSIT_AMOUNT);
     });
 
     it("Should use user's address as fallback if no fallback wallet is set", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await stablecoinVault.connect(user1).setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
       await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD]);
       await ethers.provider.send("evm_mine");
 
-      const user1InitialBalance = await USDC.balanceOf(user1.address);
+      const user1InitialBalance = await ERC20Token.balanceOf(user1.address);
 
-      await expect(stablecoinVault.connect(user2).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user2).fallbackWithdraw(user1.address, DEPOSIT_AMOUNT))
         .to.emit(stablecoinVault, "FallbackWithdrawal")
-        .withArgs(user1.address, user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT);
+        .withArgs(user1.address, user1.address, DEPOSIT_AMOUNT);
 
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(0);
-      expect(await USDC.balanceOf(user1.address)).to.equal(user1InitialBalance + DEPOSIT_AMOUNT);
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(0);
+      expect(await ERC20Token.balanceOf(user1.address)).to.equal(user1InitialBalance + DEPOSIT_AMOUNT);
     });
 
     it("Should reset fallback period on new deposit", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await stablecoinVault.connect(user1).setFallbackWallet(fallbackWallet.address);
       await stablecoinVault.connect(user1).setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
       await ethers.provider.send("evm_increaseTime", [MIN_FALLBACK_PERIOD - 24 * 60 * 60]);
       await ethers.provider.send("evm_mine");
 
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
 
-      await expect(stablecoinVault.connect(fallbackWallet).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(fallbackWallet).fallbackWithdraw(user1.address, DEPOSIT_AMOUNT))
         .to.be.revertedWith("Fallback period not elapsed");
     });
 
     it("Should not allow fallback withdrawal before period", async function () {
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await stablecoinVault.connect(user1).setFallbackWallet(fallbackWallet.address);
       await stablecoinVault.connect(user1).setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
 
@@ -286,11 +247,11 @@ describe("StablecoinVault", function () {
       await ethers.provider.send("evm_mine");
 
       await expect(
-        stablecoinVault.connect(user2).fallbackWithdraw(user1.address, await USDC.getAddress(), DEPOSIT_AMOUNT)
+        stablecoinVault.connect(user2).fallbackWithdraw(user1.address, DEPOSIT_AMOUNT)
       ).to.be.revertedWith("Fallback period not elapsed");
 
       // Verify that the balance hasn't changed
-      expect(await stablecoinVault.getBalance(user1.address, await USDC.getAddress())).to.equal(DEPOSIT_AMOUNT);
+      expect(await stablecoinVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT);
     });
   });
 
@@ -332,18 +293,18 @@ describe("StablecoinVault", function () {
     it("Should prevent deposits when paused", async function () {
       await stablecoinVault.connect(owner).pause();
       
-      await expect(stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT))
         .to.be.revertedWithCustomError(stablecoinVault, "EnforcedPause");
     });
 
     it("Should prevent withdrawals when paused", async function () {
       // First, make a deposit
-      await stablecoinVault.connect(user1).deposit(await USDC.getAddress(), DEPOSIT_AMOUNT);
+      await stablecoinVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       
       // Then pause the contract
       await stablecoinVault.connect(owner).pause();
       
-      await expect(stablecoinVault.connect(user1).withdraw(await USDC.getAddress(), DEPOSIT_AMOUNT))
+      await expect(stablecoinVault.connect(user1).withdraw(DEPOSIT_AMOUNT))
         .to.be.revertedWithCustomError(stablecoinVault, "EnforcedPause");
     });
   });
