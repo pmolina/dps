@@ -30,7 +30,7 @@ To support multiple ERC20 tokens, the contract should be deployed separately for
 
 ## Testing
 
-A comprehensive test suite is implemented in `test/ERC20TokenVault.test.js`, covering all major functionalities:
+A comprehensive test suite using Hardhat is implemented in `test/ERC20TokenVault.test.js`, covering all major functionalities:
 
 - Deployment
 - Deposits and withdrawals
@@ -38,6 +38,12 @@ A comprehensive test suite is implemented in `test/ERC20TokenVault.test.js`, cov
 - Fallback wallet operations
 - Owner functions (pause/unpause)
 - Uses MockERC20 tokens to simulate ERC20 token interactions
+
+Additionally, Foundry tests are available in `test/foundry/ERC20TokenVault.t.sol`. To run the Foundry tests, use the following command:
+
+```bash
+forge test
+```
 
 ## Usage
 
@@ -56,7 +62,7 @@ This project uses Hardhat for development and testing. To set up the development
 
 1. Install dependencies: `npm install`
 2. Compile contracts: `npx hardhat compile`
-3. Run tests: `npx hardhat test`
+3. Run tests: `npx hardhat test && forge test`
 4. Deploy (local network): `npx hardhat run scripts/deploy.js`
 
 ## Security
