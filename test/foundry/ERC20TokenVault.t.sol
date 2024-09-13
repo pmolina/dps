@@ -43,7 +43,7 @@ contract ERC20TokenVaultTest is Test {
     function testDeposit() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT);
-        assertEq(vault.getBalance(user1), DEPOSIT_AMOUNT);
+        assertEq(vault.balances(user1), DEPOSIT_AMOUNT);
     }
 
     function testWithdraw() public {
@@ -51,7 +51,7 @@ contract ERC20TokenVaultTest is Test {
         vault.deposit(DEPOSIT_AMOUNT);
         vault.withdraw(DEPOSIT_AMOUNT);
         vm.stopPrank();
-        assertEq(vault.getBalance(user1), 0);
+        assertEq(vault.balances(user1), 0);
     }
 
     function testSetFallbackWallet() public {
@@ -78,7 +78,7 @@ contract ERC20TokenVaultTest is Test {
         vm.prank(user2);
         vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT);
 
-        assertEq(vault.getBalance(user1), 0);
+        assertEq(vault.balances(user1), 0);
         assertEq(token.balanceOf(fallbackWallet), DEPOSIT_AMOUNT);
     }
 
@@ -98,19 +98,19 @@ contract ERC20TokenVaultTest is Test {
 
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT);
-        assertEq(vault.getBalance(user1), DEPOSIT_AMOUNT);
+        assertEq(vault.balances(user1), DEPOSIT_AMOUNT);
     }
 
     function testUpdateProofOfLife() public {
         vm.prank(user1);
         vault.updateProofOfLife();
-        assertEq(vault.getLastProofOfLife(user1), block.timestamp);
+        assertEq(vault.lastProofOfLife(user1), block.timestamp);
     }
 
     function testDepositUpdatesProofOfLife() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT);
-        assertEq(vault.getLastProofOfLife(user1), block.timestamp);
+        assertEq(vault.lastProofOfLife(user1), block.timestamp);
     }
 
     function testWithdrawUpdatesProofOfLife() public {
@@ -119,7 +119,7 @@ contract ERC20TokenVaultTest is Test {
         vm.warp(block.timestamp + 1 days);
         vault.withdraw(DEPOSIT_AMOUNT);
         vm.stopPrank();
-        assertEq(vault.getLastProofOfLife(user1), block.timestamp);
+        assertEq(vault.lastProofOfLife(user1), block.timestamp);
     }
 
     function testFallbackWithdrawBeforePeriod() public {
@@ -147,7 +147,7 @@ contract ERC20TokenVaultTest is Test {
         vm.prank(user2);
         vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT);
 
-        assertEq(vault.getBalance(user1), 0);
+        assertEq(vault.balances(user1), 0);
         assertEq(token.balanceOf(user1), INITIAL_SUPPLY);
     }
 

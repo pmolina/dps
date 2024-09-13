@@ -7,14 +7,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
-    // Immutable reference to the ERC20 token contract
+    // Immutable reference to an ERC20 token contract
     IERC20 public immutable token;
 
     // Mapping to store user balances
-    mapping(address => uint256) private balances;
+    mapping(address => uint256) public balances;
 
     // Mapping to store the last proof of life timestamp for each user
-    mapping(address => uint256) private lastProofOfLife;
+    mapping(address => uint256) public lastProofOfLife;
 
     // Mapping to store fallback wallets for each user
     mapping(address => address) public fallbackWallets;
@@ -42,7 +42,6 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
         address indexed fallbackWallet,
         uint256 amount
     );
-    // New event for setting individual fallback period
     event UserFallbackPeriodSet(address indexed user, uint256 period);
 
     // Constructor to initialize the contract with token address and set the owner
@@ -122,11 +121,6 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
         emit FallbackWithdrawal(_user, fallbackWallet, _amount);
     }
 
-    // Function to get the balance of a user
-    function getBalance(address _user) external view returns (uint256) {
-        return balances[_user];
-    }
-
     // Function to update proof of life without making a deposit
     function updateProofOfLife() external whenNotPaused {
         _updateProofOfLife(msg.sender);
@@ -136,11 +130,6 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
     function _updateProofOfLife(address user) internal {
         lastProofOfLife[user] = block.timestamp;
         emit ProofOfLifeUpdated(user, block.timestamp);
-    }
-
-    // Function to get the last proof of life timestamp for a user
-    function getLastProofOfLife(address user) external view returns (uint256) {
-        return lastProofOfLife[user];
     }
 
     // New functions for pausing and unpausing

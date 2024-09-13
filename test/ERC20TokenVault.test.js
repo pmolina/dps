@@ -52,7 +52,7 @@ describe("ERC20TokenVault", function () {
     });
 
     it("Should have zero balance for ERC20 tokens initially", async function () {
-      const balance = await tokenVault.getBalance(user1.address);
+      const balance = await tokenVault.balances(user1.address);
       expect(balance).to.equal(0);
     });
 
@@ -73,7 +73,7 @@ describe("ERC20TokenVault", function () {
         .to.emit(tokenVault, "Deposit")
         .withArgs(user1.address, DEPOSIT_AMOUNT);
 
-      expect(await tokenVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT);
+      expect(await tokenVault.balances(user1.address)).to.equal(DEPOSIT_AMOUNT);
     });
 
     it("Should reject deposits of zero amount", async function () {
@@ -83,7 +83,7 @@ describe("ERC20TokenVault", function () {
 
     it("Should update proof of life on deposit", async function () {
       await tokenVault.connect(user1).deposit(DEPOSIT_AMOUNT);
-      const lastProofOfLife = await tokenVault.getLastProofOfLife(user1.address);
+      const lastProofOfLife = await tokenVault.lastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
         5
@@ -93,7 +93,7 @@ describe("ERC20TokenVault", function () {
     it("Should allow multiple deposits for the same user and token", async function () {
       await tokenVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await tokenVault.connect(user1).deposit(DEPOSIT_AMOUNT);
-      expect(await tokenVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT);
+      expect(await tokenVault.balances(user1.address)).to.equal(DEPOSIT_AMOUNT+DEPOSIT_AMOUNT);
     });
   });
 
@@ -107,7 +107,7 @@ describe("ERC20TokenVault", function () {
         .to.emit(tokenVault, "Withdrawal")
         .withArgs(user1.address, DEPOSIT_AMOUNT);
 
-      expect(await tokenVault.getBalance(user1.address)).to.equal(0);
+      expect(await tokenVault.balances(user1.address)).to.equal(0);
     });
 
     it("Should reject withdrawals exceeding balance", async function () {
@@ -122,7 +122,7 @@ describe("ERC20TokenVault", function () {
 
     it("Should update proof of life on withdrawal", async function () {
       await tokenVault.connect(user1).withdraw(DEPOSIT_AMOUNT);
-      const lastProofOfLife = await tokenVault.getLastProofOfLife(user1.address);
+      const lastProofOfLife = await tokenVault.lastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
         5
@@ -146,7 +146,7 @@ describe("ERC20TokenVault", function () {
 
     it("Should update proof of life on deposit", async function () {
       await tokenVault.connect(user1).deposit(DEPOSIT_AMOUNT);
-      const lastProofOfLife = await tokenVault.getLastProofOfLife(user1.address);
+      const lastProofOfLife = await tokenVault.lastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
         5
@@ -156,7 +156,7 @@ describe("ERC20TokenVault", function () {
     it("Should update proof of life on withdrawal", async function () {
       await tokenVault.connect(user1).deposit(DEPOSIT_AMOUNT);
       await tokenVault.connect(user1).withdraw(DEPOSIT_AMOUNT);
-      const lastProofOfLife = await tokenVault.getLastProofOfLife(user1.address);
+      const lastProofOfLife = await tokenVault.lastProofOfLife(user1.address);
       expect(lastProofOfLife).to.be.closeTo(
         (await ethers.provider.getBlock("latest")).timestamp,
         5
@@ -204,7 +204,7 @@ describe("ERC20TokenVault", function () {
         .to.emit(tokenVault, "FallbackWithdrawal")
         .withArgs(user1.address, fallbackWallet.address, DEPOSIT_AMOUNT);
 
-      expect(await tokenVault.getBalance(user1.address)).to.equal(0);
+      expect(await tokenVault.balances(user1.address)).to.equal(0);
       expect(await ERC20Token.balanceOf(fallbackWallet.address)).to.equal(fallbackWalletInitialBalance + DEPOSIT_AMOUNT);
     });
 
@@ -220,7 +220,7 @@ describe("ERC20TokenVault", function () {
         .to.emit(tokenVault, "FallbackWithdrawal")
         .withArgs(user1.address, user1.address, DEPOSIT_AMOUNT);
 
-      expect(await tokenVault.getBalance(user1.address)).to.equal(0);
+      expect(await tokenVault.balances(user1.address)).to.equal(0);
       expect(await ERC20Token.balanceOf(user1.address)).to.equal(user1InitialBalance + DEPOSIT_AMOUNT);
     });
 
@@ -251,7 +251,7 @@ describe("ERC20TokenVault", function () {
       ).to.be.revertedWith("Fallback period not elapsed");
 
       // Verify that the balance hasn't changed
-      expect(await tokenVault.getBalance(user1.address)).to.equal(DEPOSIT_AMOUNT);
+      expect(await tokenVault.balances(user1.address)).to.equal(DEPOSIT_AMOUNT);
     });
   });
 
