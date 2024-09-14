@@ -7,11 +7,20 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
+// Importing the Aave V3 Pool interface for interacting with the Aave lending protocol
+import { IPool } from "@aave/core-v3/contracts/interfaces/IPool.sol";
+
 /// @title ERC20 Token Vault
 /// @notice A vault contract for depositing and managing ERC20 tokens with fallback and proof-of-life functionality.
 contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
-  // Immutable reference to the ERC20 token contract
+  // Immutable reference to the ERC20 token contract (e.g.: USDC)
   IERC20 public immutable token;
+
+  // The aToken corresponding to our main token (e.g.: aUSDC from USDC)
+  IERC20 public immutable aToken;
+
+  // Immutable reference to the Aave lending pool contract
+  IPool public immutable lendingPool;
 
   // Mapping to store user balances
   mapping(address => uint256) public balances;
@@ -28,6 +37,9 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
 
   // Mapping to store individual fallback periods for each user
   mapping(address => uint256) public userFallbackPeriods;
+
+  // Mapping to store user aToken balances
+  mapping(address => uint256) public aBalances;
 
   // Event emitted when a user deposits tokens
   event Deposit(address indexed user, uint256 amount);
@@ -47,12 +59,27 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
   // Event emitted when a user sets their fallback period
   event UserFallbackPeriodSet(address indexed user, uint256 period);
 
+  // Event for investing
+  event Invested(address indexed user, uint256 amount);
+
+  // Event for deinvesting
+  event Deinvested(address indexed user, uint256 amount);
+
   /// @notice Constructor to initialize the contract with token address and owner.
   /// @param _tokenAddress The address of the ERC20 token contract.
+  /// @param _aTokenAddress The address of the aToken contract.
+  /// @param _lendingPoolAddress The address of the Aave lending pool contract.
   /// @param initialOwner The address of the contract owner.
-  constructor(address _tokenAddress, address initialOwner) Ownable(initialOwner) {
+  constructor(
+    address _tokenAddress,
+    address _aTokenAddress,
+    address _lendingPoolAddress,
+    address initialOwner
+  ) Ownable(initialOwner) {
     // Initialize the ERC20 token interface
     token = IERC20(_tokenAddress);
+    aToken = IERC20(_aTokenAddress);
+    lendingPool = IPool(_lendingPoolAddress);
   }
 
   /// @notice Function to deposit tokens into the vault.
@@ -156,6 +183,63 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
 
     // Emit the proof-of-life updated event
     emit ProofOfLifeUpdated(user, block.timestamp);
+  }
+
+  /// @notice Function to invest user's funds into the Aave lending protocol
+  /// @param _amount The amount of tokens to invest
+  function invest(uint256 _amount) external nonReentrant whenNotPaused {
+    require(_amount > 0, "Amount must be greater than 0");
+    require(balances[msg.sender] >= _amount, "Insufficient balance");
+
+    // Decrease the user's balance in the vault
+    balances[msg.sender] -= _amount;
+
+    // Approve the lending pool to spend tokens
+    token.approve(address(lendingPool), _amount);
+
+    // Record the current aToken balance of this contract
+    uint256 aTokenBalanceBefore = aToken.balanceOf(address(this));
+
+    // Deposit tokens into Aave
+    lendingPool.supply(address(token), _amount, address(this), 0);
+
+    // Calculate the amount of aTokens received
+    uint256 aTokensReceived = aToken.balanceOf(address(this)) - aTokenBalanceBefore;
+
+    // Update the user's aToken balance
+    aBalances[msg.sender] += aTokensReceived;
+
+    // Update the user's proof-of-life timestamp
+    _updateProofOfLife(msg.sender);
+
+    emit Invested(msg.sender, _amount);
+  }
+
+  /// @notice Function to deinvest user's funds from the Aave lending protocol
+  /// @param _amount The amount of aTokens to deinvest
+  function deinvest(uint256 _amount) external nonReentrant whenNotPaused {
+    require(_amount > 0, "Amount must be greater than 0");
+    require(aBalances[msg.sender] >= _amount, "Insufficient aToken balance");
+
+    // Decrease the user's aToken balance
+    aBalances[msg.sender] -= _amount;
+
+    // Record the current token balance of this contract
+    uint256 tokenBalanceBefore = token.balanceOf(address(this));
+
+    // Withdraw tokens from Aave
+    lendingPool.withdraw(address(token), _amount, address(this));
+
+    // Calculate the amount of tokens received
+    uint256 tokensReceived = token.balanceOf(address(this)) - tokenBalanceBefore;
+
+    // Increase the user's balance in the vault
+    balances[msg.sender] += tokensReceived;
+
+    // Update the user's proof-of-life timestamp
+    _updateProofOfLife(msg.sender);
+
+    emit Deinvested(msg.sender, tokensReceived);
   }
 
   /// @notice Function to pause the contract (only callable by the owner).
