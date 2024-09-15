@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../../contracts/ERC20TokenVault.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Pool } from "@aave/core-v3/contracts/protocol/pool/Pool.sol";
+import { IPool } from "@aave/core-v3/contracts/interfaces/IPool.sol";
+import { IPoolAddressesProvider } from "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 
 contract MockERC20 is ERC20 {
   constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
@@ -13,9 +16,42 @@ contract MockERC20 is ERC20 {
   }
 }
 
+contract MockPool is Pool {
+  mapping(address => uint256) public supplies;
+  mapping(address => uint256) public borrows;
+
+  constructor(IPoolAddressesProvider provider) Pool(provider) {}
+
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16) public override {
+    supplies[onBehalfOf] += amount;
+    IERC20(asset).transferFrom(msg.sender, address(this), amount);
+  }
+
+  function withdraw(address asset, uint256 amount, address to) public override returns (uint256) {
+    require(supplies[msg.sender] >= amount, "Insufficient balance");
+    supplies[msg.sender] -= amount;
+    IERC20(asset).transfer(to, amount);
+    return amount;
+  }
+
+  function borrow(address asset, uint256 amount, address onBehalfOf) public {
+    borrows[onBehalfOf] += amount;
+    IERC20(asset).transfer(msg.sender, amount);
+  }
+
+  function repay(address asset, uint256 amount, address onBehalfOf) public returns (uint256) {
+    uint256 repayAmount = amount > borrows[onBehalfOf] ? borrows[onBehalfOf] : amount;
+    borrows[onBehalfOf] -= repayAmount;
+    IERC20(asset).transferFrom(msg.sender, address(this), repayAmount);
+    return repayAmount;
+  }
+}
+
 contract ERC20TokenVaultTest is Test {
   ERC20TokenVault public vault;
   MockERC20 public token;
+  MockERC20 public aToken;
+  MockPool public lendingPool;
   address public owner;
   address public user1;
   address public user2;
@@ -33,7 +69,13 @@ contract ERC20TokenVaultTest is Test {
     fallbackWallet = address(0x3);
 
     token = new MockERC20("Test Token", "TEST");
-    vault = new ERC20TokenVault(address(token), owner);
+    aToken = new MockERC20("Aave Test Token", "aTEST");
+
+    // Create a mock IPoolAddressesProvider
+    MockPoolAddressesProvider mockProvider = new MockPoolAddressesProvider();
+    lendingPool = new MockPool(mockProvider);
+
+    vault = new ERC20TokenVault(address(token), address(aToken), address(lendingPool), owner);
 
     token.mint(user1, INITIAL_SUPPLY);
     vm.prank(user1);
@@ -227,4 +269,103 @@ contract ERC20TokenVaultTest is Test {
         vault.unpause();
     }
     */
+}
+
+// Simple mock for IPoolAddressesProvider
+contract MockPoolAddressesProvider is IPoolAddressesProvider {
+  string private marketId;
+  address private pool;
+  address private poolConfigurator;
+  address private priceOracle;
+  address private aclManager;
+  address private aclAdmin;
+  address private priceOracleSentinel;
+  address private poolDataProvider;
+  address private lendingRateOracle;
+
+  mapping(bytes32 => address) private addresses;
+
+  function getMarketId() external view override returns (string memory) {
+    return marketId;
+  }
+
+  function setMarketId(string calldata newMarketId) external override {
+    marketId = newMarketId;
+  }
+
+  function getAddress(bytes32 id) external view override returns (address) {
+    return addresses[id];
+  }
+
+  function setAddressAsProxy(bytes32 id, address impl) external override {
+    addresses[id] = impl;
+  }
+
+  function setAddress(bytes32 id, address newAddress) external override {
+    addresses[id] = newAddress;
+  }
+
+  function getPool() external view override returns (address) {
+    return pool;
+  }
+
+  function setPoolImpl(address newPoolImpl) external override {
+    pool = newPoolImpl;
+  }
+
+  function getPoolConfigurator() external view override returns (address) {
+    return poolConfigurator;
+  }
+
+  function setPoolConfiguratorImpl(address newPoolConfiguratorImpl) external override {
+    poolConfigurator = newPoolConfiguratorImpl;
+  }
+
+  function getPriceOracle() external view override returns (address) {
+    return priceOracle;
+  }
+
+  function setPriceOracle(address newPriceOracle) external override {
+    priceOracle = newPriceOracle;
+  }
+
+  function getACLManager() external view override returns (address) {
+    return aclManager;
+  }
+
+  function setACLManager(address newAclManager) external override {
+    aclManager = newAclManager;
+  }
+
+  function getACLAdmin() external view override returns (address) {
+    return aclAdmin;
+  }
+
+  function setACLAdmin(address newAclAdmin) external override {
+    aclAdmin = newAclAdmin;
+  }
+
+  function getPriceOracleSentinel() external view override returns (address) {
+    return priceOracleSentinel;
+  }
+
+  function setPriceOracleSentinel(address newPriceOracleSentinel) external override {
+    priceOracleSentinel = newPriceOracleSentinel;
+  }
+
+  function getPoolDataProvider() external view override returns (address) {
+    return poolDataProvider;
+  }
+
+  function setPoolDataProvider(address newDataProvider) external override {
+    poolDataProvider = newDataProvider;
+  }
+
+  function getLendingRateOracle() external view returns (address) {
+    return lendingRateOracle;
+  }
+
+  function setLendingRateOracle(address newLendingRateOracle) external {
+    lendingRateOracle = newLendingRateOracle;
+  }
 }
