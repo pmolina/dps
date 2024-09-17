@@ -62,6 +62,8 @@ contract ERC20TokenVaultTest is Test {
   uint256 constant MIN_FALLBACK_PERIOD = 90 days;
   uint256 constant MAX_FALLBACK_PERIOD = 1095 days;
 
+  bytes32 constant CLIENT_ID = keccak256("client1");
+
   function setUp() public {
     owner = address(this);
     user1 = address(0x1);
@@ -84,43 +86,43 @@ contract ERC20TokenVaultTest is Test {
 
   function testDeposit() public {
     vm.prank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    assertEq(vault.balances(user1), DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    assertEq(vault.balances(user1, CLIENT_ID), DEPOSIT_AMOUNT);
   }
 
   function testWithdraw() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.withdraw(DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.withdraw(DEPOSIT_AMOUNT, CLIENT_ID);
     vm.stopPrank();
-    assertEq(vault.balances(user1), 0);
+    assertEq(vault.balances(user1, CLIENT_ID), 0);
   }
 
   function testSetFallbackWallet() public {
     vm.prank(user1);
-    vault.setFallbackWallet(fallbackWallet);
-    assertEq(vault.fallbackWallets(user1), fallbackWallet);
+    vault.setFallbackWallet(CLIENT_ID, fallbackWallet);
+    assertEq(vault.fallbackWallets(user1, CLIENT_ID), fallbackWallet);
   }
 
   function testSetUserFallbackPeriod() public {
     vm.prank(user1);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
-    assertEq(vault.userFallbackPeriods(user1), MIN_FALLBACK_PERIOD);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
+    assertEq(vault.userFallbackPeriods(user1, CLIENT_ID), MIN_FALLBACK_PERIOD);
   }
 
   function testFallbackWithdraw() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.setFallbackWallet(fallbackWallet);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.setFallbackWallet(CLIENT_ID, fallbackWallet);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
     vm.stopPrank();
 
     vm.warp(block.timestamp + MIN_FALLBACK_PERIOD + 1 days);
 
     vm.prank(user2);
-    vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT);
+    vault.fallbackWithdraw(user1, CLIENT_ID, DEPOSIT_AMOUNT);
 
-    assertEq(vault.balances(user1), 0);
+    assertEq(vault.balances(user1, CLIENT_ID), 0);
     assertEq(token.balanceOf(fallbackWallet), DEPOSIT_AMOUNT);
   }
 
@@ -130,7 +132,7 @@ contract ERC20TokenVaultTest is Test {
 
     vm.expectRevert();
     vm.prank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
   }
 
   function testUnpause() public {
@@ -139,136 +141,158 @@ contract ERC20TokenVaultTest is Test {
     assertFalse(vault.paused());
 
     vm.prank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    assertEq(vault.balances(user1), DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    assertEq(vault.balances(user1, CLIENT_ID), DEPOSIT_AMOUNT);
   }
 
   function testUpdateProofOfLife() public {
     vm.prank(user1);
-    vault.updateProofOfLife();
-    assertEq(vault.lastProofOfLife(user1), block.timestamp);
+    vault.updateProofOfLife(CLIENT_ID);
+    assertEq(vault.lastProofOfLife(user1, CLIENT_ID), block.timestamp);
   }
 
   function testDepositUpdatesProofOfLife() public {
     vm.prank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    assertEq(vault.lastProofOfLife(user1), block.timestamp);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    assertEq(vault.lastProofOfLife(user1, CLIENT_ID), block.timestamp);
   }
 
   function testWithdrawUpdatesProofOfLife() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
     vm.warp(block.timestamp + 1 days);
-    vault.withdraw(DEPOSIT_AMOUNT);
+    vault.withdraw(DEPOSIT_AMOUNT, CLIENT_ID);
     vm.stopPrank();
-    assertEq(vault.lastProofOfLife(user1), block.timestamp);
+    assertEq(vault.lastProofOfLife(user1, CLIENT_ID), block.timestamp);
   }
 
   function testFallbackWithdrawBeforePeriod() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.setFallbackWallet(fallbackWallet);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.setFallbackWallet(CLIENT_ID, fallbackWallet);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
     vm.stopPrank();
 
     vm.warp(block.timestamp + MIN_FALLBACK_PERIOD - 1 days);
 
     vm.expectRevert("Fallback period not elapsed");
     vm.prank(user2);
-    vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT);
+    vault.fallbackWithdraw(user1, CLIENT_ID, DEPOSIT_AMOUNT);
   }
 
   function testFallbackWithdrawWithoutSettingWallet() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
     vm.stopPrank();
 
     vm.warp(block.timestamp + MIN_FALLBACK_PERIOD + 1 days);
 
     vm.prank(user2);
-    vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT);
+    vault.fallbackWithdraw(user1, CLIENT_ID, DEPOSIT_AMOUNT);
 
-    assertEq(vault.balances(user1), 0);
+    assertEq(vault.balances(user1, CLIENT_ID), 0);
     assertEq(token.balanceOf(user1), INITIAL_SUPPLY);
   }
 
   function testSetFallbackPeriodTooShort() public {
     vm.prank(user1);
     vm.expectRevert("Period too short");
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD - 1 days);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD - 1 days);
   }
 
   function testSetFallbackPeriodTooLong() public {
     vm.prank(user1);
     vm.expectRevert("Period too long");
-    vault.setUserFallbackPeriod(MAX_FALLBACK_PERIOD + 1 days);
+    vault.setUserFallbackPeriod(CLIENT_ID, MAX_FALLBACK_PERIOD + 1 days);
   }
 
   function testDepositZeroAmount() public {
     vm.prank(user1);
     vm.expectRevert("Amount must be greater than 0");
-    vault.deposit(0);
+    vault.deposit(0, CLIENT_ID);
   }
 
   function testWithdrawZeroAmount() public {
     vm.prank(user1);
     vm.expectRevert("Amount must be greater than 0");
-    vault.withdraw(0);
+    vault.withdraw(0, CLIENT_ID);
   }
 
   function testWithdrawInsufficientBalance() public {
     vm.prank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
 
     vm.prank(user1);
     vm.expectRevert("Insufficient balance");
-    vault.withdraw(DEPOSIT_AMOUNT + 1);
+    vault.withdraw(DEPOSIT_AMOUNT + 1, CLIENT_ID);
   }
 
   function testFallbackWithdrawZeroAmount() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.setFallbackWallet(fallbackWallet);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.setFallbackWallet(CLIENT_ID, fallbackWallet);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
     vm.stopPrank();
 
     vm.warp(block.timestamp + MIN_FALLBACK_PERIOD + 1 days);
 
     vm.prank(user2);
     vm.expectRevert("Amount must be greater than 0");
-    vault.fallbackWithdraw(user1, 0);
+    vault.fallbackWithdraw(user1, CLIENT_ID, 0);
   }
 
   function testFallbackWithdrawInsufficientBalance() public {
     vm.startPrank(user1);
-    vault.deposit(DEPOSIT_AMOUNT);
-    vault.setFallbackWallet(fallbackWallet);
-    vault.setUserFallbackPeriod(MIN_FALLBACK_PERIOD);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.setFallbackWallet(CLIENT_ID, fallbackWallet);
+    vault.setUserFallbackPeriod(CLIENT_ID, MIN_FALLBACK_PERIOD);
     vm.stopPrank();
 
     vm.warp(block.timestamp + MIN_FALLBACK_PERIOD + 1 days);
 
     vm.prank(user2);
     vm.expectRevert("Insufficient balance");
-    vault.fallbackWithdraw(user1, DEPOSIT_AMOUNT + 1);
+    vault.fallbackWithdraw(user1, CLIENT_ID, DEPOSIT_AMOUNT + 1);
   }
 
-  /* TODO: fix tests
-    function testNonOwnerCannotPause() public {
-        vm.prank(user1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        vault.pause();
-    }
+  function testInvest() public {
+    vm.startPrank(user1);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.invest(DEPOSIT_AMOUNT, CLIENT_ID);
+    vm.stopPrank();
 
-    function testNonOwnerCannotUnpause() public {
-        vault.pause();
+    assertEq(vault.balances(user1, CLIENT_ID), 0);
+    assertEq(vault.aBalances(user1, CLIENT_ID), DEPOSIT_AMOUNT);
+  }
 
-        vm.prank(user1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        vault.unpause();
-    }
-    */
+  function testDeinvest() public {
+    vm.startPrank(user1);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.invest(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.deinvest(DEPOSIT_AMOUNT, CLIENT_ID);
+    vm.stopPrank();
+
+    assertEq(vault.balances(user1, CLIENT_ID), DEPOSIT_AMOUNT);
+    assertEq(vault.aBalances(user1, CLIENT_ID), 0);
+  }
+
+  function testInvestInsufficientBalance() public {
+    vm.startPrank(user1);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vm.expectRevert("Insufficient balance");
+    vault.invest(DEPOSIT_AMOUNT + 1, CLIENT_ID);
+    vm.stopPrank();
+  }
+
+  function testDeinvestInsufficientBalance() public {
+    vm.startPrank(user1);
+    vault.deposit(DEPOSIT_AMOUNT, CLIENT_ID);
+    vault.invest(DEPOSIT_AMOUNT, CLIENT_ID);
+    vm.expectRevert("Insufficient aToken balance");
+    vault.deinvest(DEPOSIT_AMOUNT + 1, CLIENT_ID);
+    vm.stopPrank();
+  }
 }
 
 // Simple mock for IPoolAddressesProvider

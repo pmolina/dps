@@ -22,48 +22,53 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
   // Immutable reference to the Aave lending pool contract
   IPool public immutable lendingPool;
 
-  // Mapping to store user balances
-  mapping(address => uint256) public balances;
+  // Mapping to store client balances: manager address => clientID => balance
+  mapping(address => mapping(bytes32 => uint256)) public balances;
 
-  // Mapping to store the last proof-of-life timestamp for each user
-  mapping(address => uint256) public lastProofOfLife;
+  // Mapping to store the last proof-of-life timestamp for each client
+  mapping(address => mapping(bytes32 => uint256)) public lastProofOfLife;
 
-  // Mapping to store fallback wallets for each user
-  mapping(address => address) public fallbackWallets;
+  // Mapping to store fallback wallets for each client
+  mapping(address => mapping(bytes32 => address)) public fallbackWallets;
 
   // Minimum and maximum allowed fallback periods
   uint256 public constant MIN_FALLBACK_PERIOD = 90 days;
   uint256 public constant MAX_FALLBACK_PERIOD = 1095 days; // 3 years
 
-  // Mapping to store individual fallback periods for each user
-  mapping(address => uint256) public userFallbackPeriods;
+  // Mapping to store individual fallback periods for each client
+  mapping(address => mapping(bytes32 => uint256)) public userFallbackPeriods;
 
-  // Mapping to store user aToken balances
-  mapping(address => uint256) public aBalances;
+  // Mapping to store client aToken balances
+  mapping(address => mapping(bytes32 => uint256)) public aBalances;
 
   // Event emitted when a user deposits tokens
-  event Deposit(address indexed user, uint256 amount);
+  event Deposit(address indexed manager, bytes32 indexed clientID, uint256 amount);
 
   // Event emitted when a user withdraws tokens
-  event Withdrawal(address indexed user, uint256 amount);
+  event Withdrawal(address indexed manager, bytes32 indexed clientID, uint256 amount);
 
-  // Event emitted when a user's proof of life is updated
-  event ProofOfLifeUpdated(address indexed user, uint256 timestamp);
+  // Event emitted when a client's proof of life is updated
+  event ProofOfLifeUpdated(address indexed manager, bytes32 indexed clientID, uint256 timestamp);
 
-  // Event emitted when a user sets a fallback wallet
-  event FallbackWalletSet(address indexed user, address indexed fallbackWallet);
+  // Event emitted when a manager sets a fallback wallet for a client
+  event FallbackWalletSet(address indexed manager, bytes32 indexed clientID, address indexed fallbackWallet);
 
   // Event emitted when a fallback withdrawal is executed
-  event FallbackWithdrawal(address indexed user, address indexed fallbackWallet, uint256 amount);
+  event FallbackWithdrawal(
+    address indexed manager,
+    bytes32 indexed clientID,
+    address indexed fallbackWallet,
+    uint256 amount
+  );
 
-  // Event emitted when a user sets their fallback period
-  event UserFallbackPeriodSet(address indexed user, uint256 period);
+  // Event emitted when a manager sets the fallback period for a client
+  event UserFallbackPeriodSet(address indexed manager, bytes32 indexed clientID, uint256 period);
 
   // Event for investing
-  event Invested(address indexed user, uint256 amount);
+  event Invested(address indexed manager, bytes32 indexed clientID, uint256 amount);
 
   // Event for deinvesting
-  event Deinvested(address indexed user, uint256 amount);
+  event Deinvested(address indexed manager, bytes32 indexed clientID, uint256 amount);
 
   /// @notice Constructor to initialize the contract with token address and owner.
   /// @param _tokenAddress The address of the ERC20 token contract.
@@ -82,117 +87,128 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
     lendingPool = IPool(_lendingPoolAddress);
   }
 
-  /// @notice Function to deposit tokens into the vault.
+  /// @notice Function to deposit tokens into the vault for a specific client.
   /// @param _amount The amount of tokens to deposit.
-  function deposit(uint256 _amount) external nonReentrant whenNotPaused {
+  /// @param clientID The unique identifier of the client.
+  function deposit(uint256 _amount, bytes32 clientID) external nonReentrant whenNotPaused {
     require(_amount > 0, "Amount must be greater than 0");
 
-    // Transfer tokens from the user to the contract
+    // Transfer tokens from the manager to the contract
     token.transferFrom(msg.sender, address(this), _amount);
 
-    // Update the user's balance
-    balances[msg.sender] += _amount;
+    // Update the client's balance
+    balances[msg.sender][clientID] += _amount;
 
-    // Update the user's proof-of-life timestamp
-    _updateProofOfLife(msg.sender);
+    // Update the client's proof-of-life timestamp
+    _updateProofOfLife(msg.sender, clientID);
 
     // Emit the deposit event
-    emit Deposit(msg.sender, _amount);
+    emit Deposit(msg.sender, clientID, _amount);
   }
 
-  /// @notice Function to set a fallback wallet.
+  /// @notice Function to set a fallback wallet for a specific client.
+  /// @param clientID The unique identifier of the client.
   /// @param _fallbackWallet The address of the fallback wallet.
-  function setFallbackWallet(address _fallbackWallet) external {
+  function setFallbackWallet(bytes32 clientID, address _fallbackWallet) external {
     require(_fallbackWallet != address(0), "Invalid fallback wallet");
 
-    // Set the fallback wallet for the sender
-    fallbackWallets[msg.sender] = _fallbackWallet;
+    // Set the fallback wallet for the client
+    fallbackWallets[msg.sender][clientID] = _fallbackWallet;
 
     // Emit the event for setting a fallback wallet
-    emit FallbackWalletSet(msg.sender, _fallbackWallet);
+    emit FallbackWalletSet(msg.sender, clientID, _fallbackWallet);
   }
 
-  /// @notice Function to set the user's fallback period.
+  /// @notice Function to set the fallback period for a specific client.
+  /// @param clientID The unique identifier of the client.
   /// @param _period The fallback period in seconds.
-  function setUserFallbackPeriod(uint256 _period) external {
+  function setUserFallbackPeriod(bytes32 clientID, uint256 _period) external {
     require(_period >= MIN_FALLBACK_PERIOD, "Period too short");
     require(_period <= MAX_FALLBACK_PERIOD, "Period too long");
 
-    // Set the fallback period for the sender
-    userFallbackPeriods[msg.sender] = _period;
+    // Set the fallback period for the client
+    userFallbackPeriods[msg.sender][clientID] = _period;
 
     // Emit the event for setting a fallback period
-    emit UserFallbackPeriodSet(msg.sender, _period);
+    emit UserFallbackPeriodSet(msg.sender, clientID, _period);
   }
 
-  /// @notice Function to withdraw tokens from the vault.
+  /// @notice Function to withdraw tokens from the vault for a specific client.
   /// @param _amount The amount of tokens to withdraw.
-  function withdraw(uint256 _amount) external nonReentrant whenNotPaused {
+  /// @param clientID The unique identifier of the client.
+  function withdraw(uint256 _amount, bytes32 clientID) external nonReentrant whenNotPaused {
     require(_amount > 0, "Amount must be greater than 0");
-    require(balances[msg.sender] >= _amount, "Insufficient balance");
+    require(balances[msg.sender][clientID] >= _amount, "Insufficient balance");
 
-    // Decrease the user's balance
-    balances[msg.sender] -= _amount;
+    // Decrease the client's balance
+    balances[msg.sender][clientID] -= _amount;
 
-    // Transfer tokens back to the user
+    // Transfer tokens back to the manager
     token.transfer(msg.sender, _amount);
 
-    // Update the user's proof-of-life timestamp
-    _updateProofOfLife(msg.sender);
+    // Update the client's proof-of-life timestamp
+    _updateProofOfLife(msg.sender, clientID);
 
     // Emit the withdrawal event
-    emit Withdrawal(msg.sender, _amount);
+    emit Withdrawal(msg.sender, clientID, _amount);
   }
 
-  /// @notice Function to perform a fallback withdrawal.
-  /// @param _user The address of the user whose funds are to be withdrawn.
+  /// @notice Function to perform a fallback withdrawal for a specific client.
+  /// @param _manager The address of the manager.
+  /// @param clientID The unique identifier of the client.
   /// @param _amount The amount of tokens to withdraw.
-  function fallbackWithdraw(address _user, uint256 _amount) external nonReentrant whenNotPaused {
+  function fallbackWithdraw(address _manager, bytes32 clientID, uint256 _amount) external nonReentrant whenNotPaused {
     // Ensure the fallback period has elapsed since the last proof-of-life
-    require(block.timestamp > lastProofOfLife[_user] + userFallbackPeriods[_user], "Fallback period not elapsed");
+    require(
+      block.timestamp > lastProofOfLife[_manager][clientID] + userFallbackPeriods[_manager][clientID],
+      "Fallback period not elapsed"
+    );
 
-    // Get the fallback wallet address; use the user's address if none is set
-    address fallbackWallet = fallbackWallets[_user];
+    // Get the fallback wallet address; use the manager's address if none is set
+    address fallbackWallet = fallbackWallets[_manager][clientID];
     if (fallbackWallet == address(0)) {
-      fallbackWallet = _user;
+      fallbackWallet = _manager;
     }
 
     require(_amount > 0, "Amount must be greater than 0");
-    require(balances[_user] >= _amount, "Insufficient balance");
+    require(balances[_manager][clientID] >= _amount, "Insufficient balance");
 
-    // Decrease the user's balance
-    balances[_user] -= _amount;
+    // Decrease the client's balance
+    balances[_manager][clientID] -= _amount;
 
     // Transfer tokens to the fallback wallet
     token.transfer(fallbackWallet, _amount);
 
     // Emit the fallback withdrawal event
-    emit FallbackWithdrawal(_user, fallbackWallet, _amount);
+    emit FallbackWithdrawal(_manager, clientID, fallbackWallet, _amount);
   }
 
-  /// @notice Function to update the user's proof-of-life without making a deposit.
-  function updateProofOfLife() external whenNotPaused {
-    _updateProofOfLife(msg.sender);
+  /// @notice Function to update the proof-of-life for a specific client without making a deposit.
+  /// @param clientID The unique identifier of the client.
+  function updateProofOfLife(bytes32 clientID) external whenNotPaused {
+    _updateProofOfLife(msg.sender, clientID);
   }
 
-  /// @notice Internal function to update the proof-of-life timestamp for a user.
-  /// @param user The address of the user.
-  function _updateProofOfLife(address user) internal {
+  /// @notice Internal function to update the proof-of-life timestamp for a client.
+  /// @param manager The address of the manager.
+  /// @param clientID The unique identifier of the client.
+  function _updateProofOfLife(address manager, bytes32 clientID) internal {
     // Update the last proof-of-life timestamp to the current block timestamp
-    lastProofOfLife[user] = block.timestamp;
+    lastProofOfLife[manager][clientID] = block.timestamp;
 
     // Emit the proof-of-life updated event
-    emit ProofOfLifeUpdated(user, block.timestamp);
+    emit ProofOfLifeUpdated(manager, clientID, block.timestamp);
   }
 
-  /// @notice Function to invest user's funds into the Aave lending protocol
+  /// @notice Function to invest a client's funds into the Aave lending protocol
   /// @param _amount The amount of tokens to invest
-  function invest(uint256 _amount) external nonReentrant whenNotPaused {
+  /// @param clientID The unique identifier of the client.
+  function invest(uint256 _amount, bytes32 clientID) external nonReentrant whenNotPaused {
     require(_amount > 0, "Amount must be greater than 0");
-    require(balances[msg.sender] >= _amount, "Insufficient balance");
+    require(balances[msg.sender][clientID] >= _amount, "Insufficient balance");
 
-    // Decrease the user's balance in the vault
-    balances[msg.sender] -= _amount;
+    // Decrease the client's balance in the vault
+    balances[msg.sender][clientID] -= _amount;
 
     // Approve the lending pool to spend tokens
     token.approve(address(lendingPool), _amount);
@@ -206,23 +222,24 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
     // Calculate the amount of aTokens received
     uint256 aTokensReceived = aToken.balanceOf(address(this)) - aTokenBalanceBefore;
 
-    // Update the user's aToken balance
-    aBalances[msg.sender] += aTokensReceived;
+    // Update the client's aToken balance
+    aBalances[msg.sender][clientID] += aTokensReceived;
 
-    // Update the user's proof-of-life timestamp
-    _updateProofOfLife(msg.sender);
+    // Update the client's proof-of-life timestamp
+    _updateProofOfLife(msg.sender, clientID);
 
-    emit Invested(msg.sender, _amount);
+    emit Invested(msg.sender, clientID, _amount);
   }
 
-  /// @notice Function to deinvest user's funds from the Aave lending protocol
+  /// @notice Function to deinvest a client's funds from the Aave lending protocol
   /// @param _amount The amount of aTokens to deinvest
-  function deinvest(uint256 _amount) external nonReentrant whenNotPaused {
+  /// @param clientID The unique identifier of the client.
+  function deinvest(uint256 _amount, bytes32 clientID) external nonReentrant whenNotPaused {
     require(_amount > 0, "Amount must be greater than 0");
-    require(aBalances[msg.sender] >= _amount, "Insufficient aToken balance");
+    require(aBalances[msg.sender][clientID] >= _amount, "Insufficient aToken balance");
 
-    // Decrease the user's aToken balance
-    aBalances[msg.sender] -= _amount;
+    // Decrease the client's aToken balance
+    aBalances[msg.sender][clientID] -= _amount;
 
     // Record the current token balance of this contract
     uint256 tokenBalanceBefore = token.balanceOf(address(this));
@@ -233,13 +250,13 @@ contract ERC20TokenVault is ReentrancyGuard, Ownable, Pausable {
     // Calculate the amount of tokens received
     uint256 tokensReceived = token.balanceOf(address(this)) - tokenBalanceBefore;
 
-    // Increase the user's balance in the vault
-    balances[msg.sender] += tokensReceived;
+    // Increase the client's balance in the vault
+    balances[msg.sender][clientID] += tokensReceived;
 
-    // Update the user's proof-of-life timestamp
-    _updateProofOfLife(msg.sender);
+    // Update the client's proof-of-life timestamp
+    _updateProofOfLife(msg.sender, clientID);
 
-    emit Deinvested(msg.sender, tokensReceived);
+    emit Deinvested(msg.sender, clientID, tokensReceived);
   }
 
   /// @notice Function to pause the contract (only callable by the owner).
