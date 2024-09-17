@@ -2,11 +2,12 @@
 
 ## Overview
 
-The Decentralized Pension System (DPS) is a proof-of-concept smart contract implementation that allows users to create and manage their own pension funds using any ERC20 token. This system leverages blockchain technology to provide a transparent, secure, and self-managed pension solution.
+The Decentralized Pension System (DPS) is a proof-of-concept smart contract implementation that allows users to create and manage their own pension funds using any ERC20 token. This system leverages blockchain technology to provide a transparent, secure, and self-managed pension solution with Aave integration for yield generation.
 
 ## Features
 
 - **ERC20 Token Support**: The contract can be deployed for any ERC20 token, allowing for multiple markets.
+- **Aave Integration**: Users can invest their deposited funds into Aave to generate yield.
 - **Flexible Withdrawals**: Funds can be withdrawn at any time by the account holder.
 - **Proof of Life**: Regular interactions with the contract serve as proof of life, ensuring the account holder's continued access.
 - **Customizable Fallback Wallet**: Users can set and update a fallback wallet to receive funds in case of prolonged inactivity. If not set, the user's own address is used as the fallback.
@@ -19,27 +20,30 @@ The Decentralized Pension System (DPS) is a proof-of-concept smart contract impl
 The core of the DPS is the `ERC20TokenVault` smart contract. Key components include:
 
 - Deposit and withdrawal functions for the specified ERC20 token
+- Invest and deinvest functions for Aave integration
 - Proof of life mechanism, automatically updating on interactions
 - Fallback wallet system with customizable periods
-- Balance tracking for each user
+- Balance tracking for each user and client ID
 - Utilizes OpenZeppelin contracts for enhanced security (ReentrancyGuard, Ownable, Pausable)
 
-## Multiple Markets
+## Multiple Markets and Client IDs
 
-To support multiple ERC20 tokens, the contract should be deployed separately for each token. This allows for independent markets for different tokens, each with its own set of users, balances, and configurations.
+To support multiple ERC20 tokens, the contract should be deployed separately for each token. This allows for independent markets for different tokens. Additionally, the contract now supports multiple client IDs per user address, enabling more flexible fund management.
 
 ## Testing
 
-A comprehensive test suite using Hardhat is implemented in `test/ERC20TokenVault.test.js`, covering all major functionalities:
+The project includes two comprehensive test suites:
 
-- Deployment
-- Deposits and withdrawals
-- Proof of life updates
-- Fallback wallet operations
-- Owner functions (pause/unpause)
-- Uses MockERC20 tokens to simulate ERC20 token interactions
+1. Hardhat tests in `test/ERC20TokenVault.test.js`:
 
-Additionally, Foundry tests are available in `test/foundry/ERC20TokenVault.t.sol`. To run the Foundry tests, use the following command:
+   - Covers all major functionalities
+   - Uses MockERC20 tokens to simulate ERC20 token interactions
+
+2. Foundry tests in `test/foundry/ERC20TokenVault.t.sol`:
+   - Provides additional coverage with Solidity-based tests
+   - Includes mocks for Aave's Pool and PoolAddressesProvider
+
+To run the tests:
 
 ```bash
 forge test
